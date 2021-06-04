@@ -36,6 +36,7 @@
 
     <!--android10 访问sd卡所需requestLegacyExternalStorage-->
     <application
+        android:name=".activity.SpeechApp"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -51,14 +52,16 @@
         <service
             android:name="com.amap.api.location.APSService"
             android:foregroundServiceType="location"/>
-        <activity android:name=".MainActivity">
+        <activity android:name=".activity.MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <receiver android:name=".BootBroadcastReceiver">
+        <receiver android:name=".BootBroadcastReceiver"
+            android:enabled="true"
+            android:exported="true">
             <intent-filter>
                 <!--注册开机广播地址-->
                 <action android:name="android.intent.action.BOOT_COMPLETED">

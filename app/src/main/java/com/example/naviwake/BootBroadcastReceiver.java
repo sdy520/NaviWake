@@ -5,6 +5,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.util.Log;
 
+import com.example.naviwake.activity.MainActivity;
+
 /**
  * @author 编写人： xiaox
  * @date 创建时间： 2016/8/20

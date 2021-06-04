@@ -1,9 +1,6 @@
-package com.example.naviwake;
-
-import androidx.appcompat.app.AppCompatActivity;
+package com.example.naviwake.activity;
 
 import android.annotation.SuppressLint;
-import android.content.Context;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.os.Bundle;
@@ -12,8 +9,6 @@ import android.os.Handler;
 import android.os.Message;
 import android.text.TextUtils;
 import android.util.Log;
-import android.view.View;
-import android.widget.RadioGroup;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -22,6 +17,10 @@ import com.amap.api.location.AMapLocationClient;
 import com.amap.api.location.AMapLocationClientOption;
 import com.amap.api.location.AMapLocationListener;
 import com.amap.api.location.AMapLocationQualityReport;
+import com.example.naviwake.model.Pos;
+import com.example.naviwake.R;
+import com.example.naviwake.util.FucUtil;
+import com.example.naviwake.util.JsonParser;
 import com.iflytek.cloud.ErrorCode;
 import com.iflytek.cloud.GrammarListener;
 import com.iflytek.cloud.InitListener;
@@ -30,7 +29,6 @@ import com.iflytek.cloud.RecognizerResult;
 import com.iflytek.cloud.SpeechConstant;
 import com.iflytek.cloud.SpeechError;
 import com.iflytek.cloud.SpeechRecognizer;
-import com.iflytek.cloud.SpeechUtility;
 import com.iflytek.cloud.VoiceWakeuper;
 import com.iflytek.cloud.WakeuperListener;
 import com.iflytek.cloud.WakeuperResult;
@@ -39,7 +37,6 @@ import com.iflytek.cloud.util.ResourceUtil;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;
@@ -47,10 +44,10 @@ import java.util.Queue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public class MainActivity extends CheckPermissionsActivity{
+public class MainActivity extends CheckPermissionsActivity {
     ArrayList<Pos> posArrayList=new ArrayList<>();
     private static final String TAG = "MainActivity";
-    private static final double EARTH_RADIUS = 6378.137;
+    //private static final double EARTH_RADIUS = 6378.137;
     public MediaPlayer questionPlayer;
     public MediaPlayer mMediaPlayer;
     public MediaPlayer noposplayer;
@@ -71,6 +68,19 @@ public class MainActivity extends CheckPermissionsActivity{
     // 本地语法构建路径
     private String grmPath = Environment.getExternalStorageDirectory().getAbsolutePath()
             + "/msc/test";
+    private String grmPath0 = Environment.getExternalStorageDirectory().getAbsolutePath()
+            + "/msc/test0";
+    private String grmPath1 = Environment.getExternalStorageDirectory().getAbsolutePath()
+            + "/msc/test1";
+    private String grmPath2 = Environment.getExternalStorageDirectory().getAbsolutePath()
+            + "/msc/test2";
+    private String grmPath3 = Environment.getExternalStorageDirectory().getAbsolutePath()
+            + "/msc/test3";
+    private String grmPath4 = Environment.getExternalStorageDirectory().getAbsolutePath()
+            + "/msc/test4";
+    private String grmPath5 = Environment.getExternalStorageDirectory().getAbsolutePath()
+            + "/msc/test5";
+    //File file = new File(grmPath);
     // 引擎类型
     private String mEngineType = SpeechConstant.TYPE_LOCAL;
 
@@ -93,7 +103,6 @@ public class MainActivity extends CheckPermissionsActivity{
             //new Pos("景点3",121.775394,39.043943,30),
             //生命院
             new Pos("景点3",121.774583,39.047187,30)
-
     };
     public ArrayList<Pos> Getpos(){
         for (Pos pos:poses){
@@ -113,9 +122,6 @@ public class MainActivity extends CheckPermissionsActivity{
     ExecutorService exec;
     //保持问题入队列
     Queue<Integer> queue=new LinkedList<Integer>();
-
-
-
     private TextView tvResult;
     //声明AMapLocationClient类对象
     public AMapLocationClient mLocationClient = null;
@@ -125,86 +131,23 @@ public class MainActivity extends CheckPermissionsActivity{
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
-        //初始化定位
-        mLocationClient = new AMapLocationClient(getApplicationContext());
-        //设置定位参数
-        mLocationClient.setLocationOption(mLocationOption);
-        //设置定位回调监听
-        mLocationClient.setLocationListener(mLocationListener);
-        //初始化AMapLocationClientOption对象
-        mLocationOption = new AMapLocationClientOption();
-        mLocationOption = getDefaultOption();
-        //启动定位
-        mLocationClient.startLocation();
-        tvResult = (TextView) findViewById(R.id.tv_result);
-
-
+        //初始化view
+        initview();
+        //初始化四个mediaPlayer
+        initmediaPlayer();
+        //初始化启动定位
+        initlocation();
+        //线程池
         exec = Executors.newSingleThreadExecutor();
-        lati=(TextView) findViewById(R.id.lat);
-        lngi=(TextView) findViewById(R.id.lng);
-        mindis=(TextView)findViewById(R.id.dist);
-        jindian=(TextView)findViewById(R.id.jindian);
-        textView = (TextView) findViewById(R.id.txt_show_msg);
-        mToast = Toast.makeText(this, "", Toast.LENGTH_SHORT);
-
-
-
-        //播放问题语音
-        questionPlayer = new MediaPlayer();
-        //回答问题后语音
-        ansplayer= new MediaPlayer();
-        mMediaPlayer=new MediaPlayer();
-        noposplayer=new MediaPlayer();
-        //初始化音频管理器
-        mAudioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
         Getpos();
-
-        StringBuffer param = new StringBuffer();
-        param.append("appid="+getString(R.string.app_id));
-        param.append(",");
-        // 设置使用v5+
-        param.append(SpeechConstant.ENGINE_MODE+"="+SpeechConstant.MODE_MSC);
-        SpeechUtility.createUtility(this, param.toString());
-
         // 初始化唤醒对象
         mIvw = VoiceWakeuper.createWakeuper(this, null);
         // 初始化识别对象---唤醒+识别,用来构建语法
-        //mAsr = SpeechRecognizer.createRecognizer(this, mInitListener);
         mAsr = SpeechRecognizer.createRecognizer(this, mInitListener);
-        if(mAsr==null){
-            Log.e(TAG,"masr is null");
-        }
-        // 初始化语法文件
-        mLocalGrammar = readFile(this, "dynasty1.bnf", "utf-8");
-
         initgrammar();
-
         initdata();
     }
 
-    /**
-     * 默认的定位参数
-     * @since 2.8.0
-     * @author hongming.wang
-     *
-     */
-    private AMapLocationClientOption getDefaultOption(){
-        AMapLocationClientOption mOption = new AMapLocationClientOption();
-        mOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);//可选，设置定位模式，可选的模式有高精度、仅设备、仅网络。默认为高精度模式
-        mOption.setGpsFirst(false);//可选，设置是否gps优先，只在高精度模式下有效。默认关闭
-        mOption.setHttpTimeOut(30000);//可选，设置网络请求超时时间。默认为30秒。在仅设备模式下无效
-        mOption.setInterval(2000);//可选，设置定位间隔。默认为2秒
-        mOption.setNeedAddress(true);//可选，设置是否返回逆地理地址信息。默认是true
-        mOption.setOnceLocation(false);//可选，设置是否单次定位。默认是false
-        mOption.setOnceLocationLatest(false);//可选，设置是否等待wifi刷新，默认为false.如果设置为true,会自动变为单次定位，持续定位时不要使用
-        AMapLocationClientOption.setLocationProtocol(AMapLocationClientOption.AMapLocationProtocol.HTTP);//可选， 设置网络请求的协议。可选HTTP或者HTTPS。默认为HTTP
-        mOption.setSensorEnable(false);//可选，设置是否使用传感器。默认是false
-        mOption.setWifiScan(true); //可选，设置是否开启wifi扫描。默认为true，如果设置为false会同时停止主动刷新，停止以后完全依赖于系统刷新，定位位置可能存在误差
-        mOption.setLocationCacheEnable(true); //可选，设置是否使用缓存定位，默认为true
-        mOption.setGeoLanguage(AMapLocationClientOption.GeoLanguage.DEFAULT);//可选，设置逆地理信息的语言，默认值为默认语言（根据所在地区选择语言）
-        return mOption;
-    }
     /**
      * 定位监听
      */
@@ -215,29 +158,27 @@ public class MainActivity extends CheckPermissionsActivity{
                 StringBuffer sb = new StringBuffer();
                 //errCode等于0代表定位成功，其他的为定位失败，具体的可以参照官网定位错误码说明
                 if(location.getErrorCode() == 0){
-                    sb.append("定位类型: " + location.getLocationType() + "\n");
-                    sb.append("经    度    : " + location.getLongitude() + "\n");
-                    sb.append("纬    度    : " + location.getLatitude() + "\n");
-                    sb.append("精    度    : " + location.getAccuracy() + "米" + "\n");
-                    sb.append("提供者    : " + location.getProvider() + "\n");
-                    sb.append("速    度    : " + location.getSpeed() + "米/秒" + "\n");
-                    sb.append("角    度    : " + location.getBearing() + "\n");
+                    sb.append("定位类型: ").append(location.getLocationType()).append("\n");
+                    sb.append("经    度    : ").append(location.getLongitude()).append("\n");
+                    sb.append("纬    度    : ").append(location.getLatitude()).append("\n");
+                    sb.append("精    度    : ").append(location.getAccuracy()).append("米").append("\n");
+                    sb.append("提供者    : ").append(location.getProvider()).append("\n");
+                    sb.append("速    度    : ").append(location.getSpeed()).append("米/秒").append("\n");
+                    sb.append("角    度    : ").append(location.getBearing()).append("\n");
                     // 获取当前提供定位服务的卫星个数
-                    sb.append("星    数    : " + location.getSatellites() + "\n");
+                    sb.append("星    数    : ").append(location.getSatellites()).append("\n");
                 } else {
                     //定位失败
                     sb.append("定位失败" + "\n");
-                    sb.append("错误码:" + location.getErrorCode() + "\n");
-                    sb.append("错误信息:" + location.getErrorInfo() + "\n");
-                    sb.append("错误描述:" + location.getLocationDetail() + "\n");
+                    sb.append("错误码:").append(location.getErrorCode()).append("\n");
+                    sb.append("错误信息:").append(location.getErrorInfo()).append("\n");
+                    sb.append("错误描述:").append(location.getLocationDetail()).append("\n");
                 }
                 sb.append("***定位质量报告***").append("\n");
                 sb.append("* WIFI开关：").append(location.getLocationQualityReport().isWifiAble() ? "开启":"关闭").append("\n");
                 sb.append("* GPS状态：").append(getGPSStatusString(location.getLocationQualityReport().getGPSStatus())).append("\n");
                 sb.append("* GPS星数：").append(location.getLocationQualityReport().getGPSSatellites()).append("\n");
-                sb.append("* 网络类型：" + location.getLocationQualityReport().getNetworkType()).append("\n");
-                sb.append("* 网络耗时：" + location.getLocationQualityReport().getNetUseTime()).append("\n");
-                sb.append("****************").append("\n");
+                sb.append("* 网络类型：").append(location.getLocationQualityReport().getNetworkType()).append("\n");
                 //解析定位结果，
                 String result = sb.toString();
                 tvResult.setText(result);
@@ -256,18 +197,14 @@ public class MainActivity extends CheckPermissionsActivity{
                                 lngi.setText(String.valueOf(car_longitude));
                                 mindis.setText(minNum_str);
                                 jindian.setText(jindian1);
-
                             }
                         });
                     }
                 }).start();
                 posList.clear();
                 temps.clear();
-                Log.e("定位经纬度", car_latitude + " " + car_longitude);
-
             } else {
                 tvResult.setText("定位失败，loc is null");
-                Log.e("1","定位失败，loc is null");
             }
         }
     };
@@ -300,25 +237,6 @@ public class MainActivity extends CheckPermissionsActivity{
 
 
 
-
-    public static double getDistance(double longitude1, double latitude1, double longitude2, double latitude2) {
-        // 纬度
-        double lat1 = Math.toRadians(latitude1);
-        double lat2 = Math.toRadians(latitude2);
-        // 经度
-        double lng1 = Math.toRadians(longitude1);
-        double lng2 = Math.toRadians(longitude2);
-        // 纬度之差
-        double a = lat1 - lat2;
-        // 经度之差
-        double b = lng1 - lng2;
-        // 计算两点距离的公式
-        double s = 2 * Math.asin(Math.sqrt(Math.pow(Math.sin(a / 2), 2) +
-                Math.cos(lat1) * Math.cos(lat2) * Math.pow(Math.sin(b / 2), 2)));
-        // 弧长乘地球半径, 返回单位: 千米
-        s =  s * EARTH_RADIUS;
-        return s;
-    }
     String minNum_str;
     String jindian1;
     //一直在景点内，allmusicflag=1不播放景点音乐，达到景点音乐只播放一次的目的
@@ -326,7 +244,7 @@ public class MainActivity extends CheckPermissionsActivity{
     public void function(){
         posList=GetposArrayList(car_latitude);
         for(int i=0;i<posList.size();i++){
-            double distance=getDistance(car_longitude,car_latitude,posList.get(i).getLongitude(),posList.get(i).getLatitude());
+            double distance= FucUtil.getDistance(car_longitude,car_latitude,posList.get(i).getLongitude(),posList.get(i).getLatitude());
             temps.add(i,distance);
             double minNum = Collections.min(temps);
             //int place=temps.indexOf(minNum);
@@ -334,8 +252,11 @@ public class MainActivity extends CheckPermissionsActivity{
             Log.e("distance_min",minNum_str+"km");
             if(distance*1000<=posList.get(i).getRadius()){
                 //&&allmusicflag==0
-                if (!mMediaPlayer.isPlaying()&&(!questionPlayer.isPlaying())&&(!ansplayer.isPlaying())) {
-                    noposplayer.pause();
+                if (!mMediaPlayer.isPlaying()&&(!questionPlayer.isPlaying())&&(!ansplayer.isPlaying())&&mdflag==0) {
+                    //轮询才可使用
+                    //posArrayList.remove(i);
+                    if(noposplayer.isPlaying())
+                        noposplayer.pause();
                     //将暂停音乐名称存在lastname
                     lastname=name;
                     flag=0;
@@ -371,8 +292,6 @@ public class MainActivity extends CheckPermissionsActivity{
                 {
                     //allmusicflag=0;
                     String bgfilename = "/storage/emulated/0/bg/";
-                    //String bgfilename=Environment.getExternalStorageDirectory().getAbsolutePath()+"/bg/";
-                    //Log.e("distance_min",bgfilename);
                     try {
                         noposplayer.reset();
                         name="b"+String.valueOf(bg_number);
@@ -387,20 +306,13 @@ public class MainActivity extends CheckPermissionsActivity{
                         noposplayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
                             @Override
                             public void onCompletion(MediaPlayer mp) {
-                                //threads.add(bg_number,"thread1");
-                                //new Thread(new ThreadShow()).start();
-
-                                //ques_number=bg_number;
-                                //Log.e("dyn",String.valueOf(ques_number));
                                 exec.execute(new ThreadShow());
-                                //exec.shutdown();
                             }
                         });
                         if(bg_number<5)
                         { bg_number++;}
                         else
-                        {bg_number=1;}
-
+                        {bg_number=0;}
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
@@ -420,12 +332,12 @@ public class MainActivity extends CheckPermissionsActivity{
             }
         }
         return posLists;
-
     }
     //提问时把noposplayer或者mMediaPlayer暂停
     private  int nopflag=0;
     private  int mdflag=0;
-
+    //解决问题播放后
+    private  int mMediaPlayerflag=0;
     // handler类接收数据
     @SuppressLint("HandlerLeak")
     Handler handler = new Handler() {
@@ -435,7 +347,8 @@ public class MainActivity extends CheckPermissionsActivity{
                 questionPlayer.reset();
                 String filename = "/storage/emulated/0/dynasty";
                 filename=filename+ques_number+".mp3";
-                Log.e("dy",String.valueOf(ques_number));
+                Log.e("TAG1",String.valueOf(ques_number));
+                //先进入景点，则问题延迟
                 /*if(mMediaPlayer.isPlaying()) {
                     try {
                         Thread.sleep(5000);
@@ -449,6 +362,7 @@ public class MainActivity extends CheckPermissionsActivity{
                         noposplayer.pause();
                         nopflag=1;
                     }
+                    //问题已经播放，则景点延迟
                     if(mMediaPlayer.isPlaying())
                     {
                         mMediaPlayer.pause();
@@ -473,11 +387,9 @@ public class MainActivity extends CheckPermissionsActivity{
 
     // 线程类
     class ThreadShow implements Runnable {
-
         @Override
         public void run() {
             // TODO Auto-generated method stub
-            //while (true) {
             try {
                 Thread.sleep(12000);
                 Message msg = new Message();
@@ -487,14 +399,8 @@ public class MainActivity extends CheckPermissionsActivity{
                 // TODO Auto-generated catch block
                 e.printStackTrace();
             }
-            // }
         }
     }
-
-
-
-
-
 
     GrammarListener grammarListener = new GrammarListener() {
         @Override
@@ -509,71 +415,10 @@ public class MainActivity extends CheckPermissionsActivity{
         }
     };
 
-    private void initgrammar() {
-        int ret = 0;
-        mAsr.setParameter(SpeechConstant.PARAMS, null);
-        mAsr.setParameter(SpeechConstant.TEXT_ENCODING, "utf-8");
-        // 设置引擎类型
-        mAsr.setParameter(SpeechConstant.ENGINE_TYPE, mEngineType);
-        // 设置语法构建路径
-        mAsr.setParameter(ResourceUtil.GRM_BUILD_PATH, grmPath);
-        // 设置本地识别使用语法id
-        //mAsr.setParameter(SpeechConstant.LOCAL_GRAMMAR, "dynasty1");
-        // 设置识别的门限值
-        mAsr.setParameter(SpeechConstant.MIXED_THRESHOLD, "30");
-        // 设置资源路径
-        // 设置音频保存路径，保存音频格式支持pcm、wav，设置路径为sd卡请注意WRITE_EXTERNAL_STORAGE权限
-        mAsr.setParameter(SpeechConstant.AUDIO_FORMAT,"wav");
-        mAsr.setParameter(SpeechConstant.ASR_AUDIO_PATH, Environment.getExternalStorageDirectory()+"/msc/asr.wav");
-        mAsr.setParameter(ResourceUtil.ASR_RES_PATH, getResourcePath());
-        //ret = mAsr.buildGrammar("bnf", mLocalGrammar, grammarListener);
-
-    }
-    private void initdata(){
-        // 非空判断，防止因空指针使程序崩溃
-        mIvw = VoiceWakeuper.getWakeuper();
-        if (mIvw != null) {
-            resultString = "";
-            //recoString = "";
-            textView.setText(resultString);
-
-            final String resPath = ResourceUtil.generateResourcePath(this, ResourceUtil.RESOURCE_TYPE.assets, "ivw/"+getString(R.string.app_id)+".jet");
-            // 清空参数
-            mIvw.setParameter(SpeechConstant.PARAMS, null);
-            // 设置识别引擎
-            //mIvw.setParameter(SpeechConstant.ENGINE_TYPE, mEngineType);
-            // 设置唤醒资源路径
-            mIvw.setParameter(ResourceUtil.IVW_RES_PATH, resPath);
-            /**
-             * 唤醒门限值，根据资源携带的唤醒词个数按照“id:门限;id:门限”的格式传入
-             * 示例demo默认设置第一个唤醒词，建议开发者根据定制资源中唤醒词个数进行设置
-             */
-            mIvw.setParameter(SpeechConstant.IVW_THRESHOLD, "0:"
-                    + curThresh);
-            // 设置唤醒+识别模式
-            //mIvw.setParameter(SpeechConstant.IVW_SST, "oneshot");
-            mIvw.setParameter(SpeechConstant.IVW_SST, "wakeup");
-            // 设置返回结果格式
-            //mIvw.setParameter(SpeechConstant.RESULT_TYPE, "json");
-            // 设置持续进行唤醒
-            mIvw.setParameter(SpeechConstant.KEEP_ALIVE,"1");
-//			mIvw.setParameter(SpeechConstant.IVW_SHOT_WORD, "0");
-
-            // 设置唤醒录音保存路径，保存最近一分钟的音频
-            mIvw.setParameter( SpeechConstant.IVW_AUDIO_PATH, Environment.getExternalStorageDirectory().getPath()+"/msc/ivw.wav" );
-            mIvw.setParameter( SpeechConstant.AUDIO_FORMAT, "wav" );
-            mIvw.startListening(mWakeuperListener);
-        } else {
-            showTip("唤醒未初始化");
-        }
-
-    }
-
     /**
      * 初始化监听器。
      */
     private InitListener mInitListener = new InitListener() {
-
         @Override
         public void onInit(int code) {
             Log.d(TAG, "SpeechRecognizer init() code = " + code);
@@ -582,7 +427,7 @@ public class MainActivity extends CheckPermissionsActivity{
             }
         }
     };
-
+    public int errocode;
     /**
      * 识别监听器。
      */
@@ -591,16 +436,16 @@ public class MainActivity extends CheckPermissionsActivity{
         @Override
         public void onVolumeChanged(int volume, byte[] data) {
             showTip("当前正在说话，音量大小：" + volume);
-            Log.d(TAG, "返回音频数据："+data.length);
+            Log.e("TAG", "返回音频数据："+data.length);
         }
 
         @Override
         public void onResult(final RecognizerResult result, boolean isLast) {
             if (null != result && !TextUtils.isEmpty(result.getResultString())) {
-                Log.d(TAG, "recognizer result：" + result.getResultString());
+                Log.e("TAG", "recognizer result：" + result.getResultString());
                 //recoString = JsonParser.parseGrammarResult(result.getResultString());
                 int recoint = JsonParser.parseGrammarResultcontact(result.getResultString());
-                Log.d(TAG, " "+recoint);
+                Log.e("TAG", " "+recoint);
                 if(recoint>30)
                 {
                     ansplayer= MediaPlayer.create(getApplicationContext(), R.raw.dui);
@@ -631,9 +476,10 @@ public class MainActivity extends CheckPermissionsActivity{
 
         @Override
         public void onEndOfSpeech() {
-
             // 此回调表示：检测到了语音的尾端点，已经进入识别过程，不再接受语音输入
             showTip("结束说话");
+            Log.e("TAG1", "end");
+            //FucUtil.deleteDirWihtFile(file);
             //mediaPlayer.start(); // 开始播放
         }
 
@@ -645,27 +491,35 @@ public class MainActivity extends CheckPermissionsActivity{
 
         @Override
         public void onError(SpeechError error) {
-            textView.setText("您好，没听到你说的答案，不好意思");
-            ansplayer= MediaPlayer.create(getApplicationContext(), R.raw.tingbuqing);
-            ansplayer.start();
-            ansplayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
-                @Override
-                public void onCompletion(MediaPlayer mp) {
-                    musicrestart();
-                }
-            });
-            // musicrestart();
-            showTip("onError Code："	+ error.getErrorCode());
+            if(error.getErrorCode()==20005&&recogflag<5){
+                recogflag++;
+                Log.e("TAG1", "次数"	+ recogflag);
+                mAsr.startListening(mRecognizerListener);
+            }
+            else {
+                textView.setText("您好，没听到你说的答案，不好意思");
+                ansplayer = MediaPlayer.create(getApplicationContext(), R.raw.tingbuqing);
+                ansplayer.start();
+                ansplayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
+                    @Override
+                    public void onCompletion(MediaPlayer mp) {
+                        musicrestart();
+                    }
+                });
+            }
+                // musicrestart();
+            errocode=error.getErrorCode();
+                showTip("onError Code："	+ error.getErrorCode());
+                Log.e("TAG1", "onError Code："	+ error.getErrorCode());
         }
 
         @Override
         public void onEvent(int eventType, int arg1, int arg2, Bundle obj) {
-            // 以下代码用于获取与云端的会话id，当业务出错时将会话id提供给技术支持人员，可用于查询会话日志，定位出错原因
-            // 若使用本地能力，会话id为null
-
+            Log.e("TAG1", "event");
         }
 
     };
+
     /**
      * 识别监听器。
      */
@@ -709,8 +563,8 @@ public class MainActivity extends CheckPermissionsActivity{
         @Override
         public void onEndOfSpeech() {
             // 此回调表示：检测到了语音的尾端点，已经进入识别过程，不再接受语音输入
-
             showTip("结束说话");
+            //FucUtil.deleteDirWihtFile(file);
             //mediaPlayer.start(); // 开始播放
         }
 
@@ -735,6 +589,7 @@ public class MainActivity extends CheckPermissionsActivity{
         }
 
     };
+
     //说出命令词后，启动之前播放
     private void musicrestart(){
         if((!mMediaPlayer.isPlaying())&&(!noposplayer.isPlaying())&&(!questionPlayer.isPlaying())&&mdflag==1){
@@ -746,17 +601,21 @@ public class MainActivity extends CheckPermissionsActivity{
             nopflag=0;
         }
     }
+
+    int recogflag;
     //设置判断回答正错的识别
     public void setgram(){
         String dynasty="dynasty"+ques_number;
-        mLocalGrammar = readFile(MainActivity.this, dynasty+".bnf", "utf-8");
+        String gram="grmPath"+ques_number;
+        mLocalGrammar = FucUtil.readFile(MainActivity.this, dynasty+".bnf", "utf-8");
         Log.e("dyna",dynasty);
         mAsr.setParameter(SpeechConstant.LOCAL_GRAMMAR, dynasty);
-        mAsr.buildGrammar("bnf", mLocalGrammar, grammarListener);
+        mAsr.setParameter(ResourceUtil.GRM_BUILD_PATH, gram);
+        mAsr.buildGrammar("bnf",mLocalGrammar, grammarListener);
+        recogflag=1;
         mAsr.startListening(mRecognizerListener);
     }
 
-    //private int i=0;
     private WakeuperListener mWakeuperListener = new WakeuperListener() {
 
         @Override
@@ -798,27 +657,11 @@ public class MainActivity extends CheckPermissionsActivity{
                 mAsr.stopListening();
             }
             textView.setText(resultString);
-/*
-			i++;
-			if(i>1&&i<=10)
-			{
-				String dynasty="dynasty"+i;
-				mLocalGrammar = readFile(OneShotDemo.this, dynasty+".bnf", "utf-8");
-				mAsr.setParameter(SpeechConstant.LOCAL_GRAMMAR, dynasty);
-			}
-			else {
-				mLocalGrammar = readFile(OneShotDemo.this, "dynasty1.bnf", "utf-8");
-				mAsr.setParameter(SpeechConstant.LOCAL_GRAMMAR, "dynasty1");
-			}
 
- */
-            mLocalGrammar = readFile(MainActivity.this, "voiceadjust.bnf", "utf-8");
+            mLocalGrammar = FucUtil.readFile(MainActivity.this, "voiceadjust.bnf", "utf-8");
             mAsr.setParameter(SpeechConstant.LOCAL_GRAMMAR, "voiceadjust");
             mAsr.buildGrammar("bnf", mLocalGrammar, grammarListener);
-
             mAsr.startListening(quesRecognizerListener);
-
-
         }
 
         @Override
@@ -835,12 +678,6 @@ public class MainActivity extends CheckPermissionsActivity{
         @Override
         public void onEvent(int eventType, int isLast, int arg2, Bundle obj) {
             Log.d(TAG, "eventType:"+eventType+ "arg1:"+isLast + "arg2:" + arg2);
-            // 识别结果
-            //if (SpeechEvent.EVENT_IVW_RESULT == eventType) {
-            //	RecognizerResult reslut = ((RecognizerResult)obj.get(SpeechEvent.KEY_EVENT_IVW_RESULT));
-            //	recoString += JsonParser.parseGrammarResult(reslut.getResultString());
-            //	textView.setText(recoString);
-            //}
         }
 
         @Override
@@ -850,6 +687,114 @@ public class MainActivity extends CheckPermissionsActivity{
 
     };
 
+    private void initmediaPlayer(){
+        //播放问题语音
+        questionPlayer = new MediaPlayer();
+        //回答问题后语音
+        ansplayer= new MediaPlayer();
+        mMediaPlayer=new MediaPlayer();
+        noposplayer=new MediaPlayer();
+        //初始化音频管理器
+        mAudioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
+    }
+    private void initlocation(){
+        //初始化定位
+        mLocationClient = new AMapLocationClient(getApplicationContext());
+        //设置定位参数
+        mLocationClient.setLocationOption(mLocationOption);
+        //设置定位回调监听
+        mLocationClient.setLocationListener(mLocationListener);
+        //初始化AMapLocationClientOption对象
+        mLocationOption = new AMapLocationClientOption();
+        mLocationOption = getDefaultOption();
+        //启动定位
+        mLocationClient.startLocation();
+    }
+    /**
+     * 默认的定位参数
+     */
+    private AMapLocationClientOption getDefaultOption(){
+        AMapLocationClientOption mOption = new AMapLocationClientOption();
+        mOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);//可选，设置定位模式，可选的模式有高精度、仅设备、仅网络。默认为高精度模式
+        mOption.setGpsFirst(false);//可选，设置是否gps优先，只在高精度模式下有效。默认关闭
+        mOption.setHttpTimeOut(30000);//可选，设置网络请求超时时间。默认为30秒。在仅设备模式下无效
+        mOption.setInterval(2000);//可选，设置定位间隔。默认为2秒
+        mOption.setNeedAddress(true);//可选，设置是否返回逆地理地址信息。默认是true
+        mOption.setOnceLocation(false);//可选，设置是否单次定位。默认是false
+        mOption.setOnceLocationLatest(false);//可选，设置是否等待wifi刷新，默认为false.如果设置为true,会自动变为单次定位，持续定位时不要使用
+        AMapLocationClientOption.setLocationProtocol(AMapLocationClientOption.AMapLocationProtocol.HTTP);//可选， 设置网络请求的协议。可选HTTP或者HTTPS。默认为HTTP
+        mOption.setSensorEnable(false);//可选，设置是否使用传感器。默认是false
+        mOption.setWifiScan(true); //可选，设置是否开启wifi扫描。默认为true，如果设置为false会同时停止主动刷新，停止以后完全依赖于系统刷新，定位位置可能存在误差
+        mOption.setLocationCacheEnable(true); //可选，设置是否使用缓存定位，默认为true
+        mOption.setGeoLanguage(AMapLocationClientOption.GeoLanguage.DEFAULT);//可选，设置逆地理信息的语言，默认值为默认语言（根据所在地区选择语言）
+        return mOption;
+    }
+    private void initview(){
+        tvResult = (TextView) findViewById(R.id.tv_result);
+        lati=(TextView) findViewById(R.id.lat);
+        lngi=(TextView) findViewById(R.id.lng);
+        mindis=(TextView)findViewById(R.id.dist);
+        jindian=(TextView)findViewById(R.id.jindian);
+        textView = (TextView) findViewById(R.id.txt_show_msg);
+        mToast = Toast.makeText(this, "", Toast.LENGTH_SHORT);
+    }
+    private void initgrammar() {
+        mAsr.setParameter(SpeechConstant.PARAMS, null);
+        mAsr.setParameter(SpeechConstant.TEXT_ENCODING, "utf-8");
+        // 设置引擎类型
+        mAsr.setParameter(SpeechConstant.ENGINE_TYPE, mEngineType);
+        // 设置语法构建路径
+        mAsr.setParameter(ResourceUtil.GRM_BUILD_PATH, grmPath);
+        // 设置本地识别使用语法id
+        //mAsr.setParameter(SpeechConstant.LOCAL_GRAMMAR, "dynasty1");
+        // 设置识别的门限值
+        // 设置语音前端点:静音超时时间，单位ms，即用户多长时间不说话则当做超时处理
+        //取值范围{1000～10000}
+        //mAsr.setParameter(SpeechConstant.VAD_ENABLE,"1");
+        //mAsr.setParameter(SpeechConstant.VAD_BOS, "10000");
+        //设置语音后端点:后端点静音检测时间，单位ms，即用户停止说话多长时间内即认为不再输入，
+        //自动停止录音，范围{0~10000}
+        //mAsr.setParameter(SpeechConstant.VAD_EOS, "10000");
+        mAsr.setParameter(SpeechConstant.MIXED_THRESHOLD, "30");
+        // 设置资源路径
+        // 设置音频保存路径，保存音频格式支持pcm、wav，设置路径为sd卡请注意WRITE_EXTERNAL_STORAGE权限
+        mAsr.setParameter(SpeechConstant.AUDIO_FORMAT,"wav");
+        mAsr.setParameter(SpeechConstant.ASR_AUDIO_PATH, Environment.getExternalStorageDirectory()+"/msc/asr.wav");
+        mAsr.setParameter(ResourceUtil.ASR_RES_PATH, getResourcePath());
+    }
+    private void initdata(){
+        // 非空判断，防止因空指针使程序崩溃
+        mIvw = VoiceWakeuper.getWakeuper();
+        if (mIvw != null) {
+            resultString = "";
+            textView.setText(resultString);
+
+            final String resPath = ResourceUtil.generateResourcePath(this, ResourceUtil.RESOURCE_TYPE.assets, "ivw/"+getString(R.string.app_id)+".jet");
+            // 清空参数
+            mIvw.setParameter(SpeechConstant.PARAMS, null);
+            // 设置识别引擎
+            //mIvw.setParameter(SpeechConstant.ENGINE_TYPE, mEngineType);
+            // 设置唤醒资源路径
+            mIvw.setParameter(ResourceUtil.IVW_RES_PATH, resPath);
+            /**
+             * 唤醒门限值，根据资源携带的唤醒词个数按照“id:门限;id:门限”的格式传入
+             * 示例demo默认设置第一个唤醒词，建议开发者根据定制资源中唤醒词个数进行设置
+             */
+            mIvw.setParameter(SpeechConstant.IVW_THRESHOLD, "0:"
+                    + curThresh);
+            // 设置唤醒模式
+            mIvw.setParameter(SpeechConstant.IVW_SST, "wakeup");
+            // 设置持续进行唤醒
+            mIvw.setParameter(SpeechConstant.KEEP_ALIVE,"1");
+//			mIvw.setParameter(SpeechConstant.IVW_SHOT_WORD, "0");
+            // 设置唤醒录音保存路径，保存最近一分钟的音频
+            mIvw.setParameter( SpeechConstant.IVW_AUDIO_PATH, Environment.getExternalStorageDirectory().getPath()+"/msc/ivw.wav" );
+            mIvw.setParameter( SpeechConstant.AUDIO_FORMAT, "wav" );
+            mIvw.startListening(mWakeuperListener);
+        } else {
+            showTip("唤醒未初始化");
+        }
+    }
 
     @Override
     protected void onDestroy() {
@@ -895,36 +840,11 @@ public class MainActivity extends CheckPermissionsActivity{
         }
     }
 
-    /**
-     * 读取asset目录下文件。
-     *
-     * @return content
-     */
-    public static String readFile(Context mContext, String file, String code) {
-        int len = 0;
-        byte[] buf = null;
-        String result = "";
-        try {
-            InputStream in = mContext.getAssets().open(file);
-            len = in.available();
-            buf = new byte[len];
-            in.read(buf, 0, len);
-
-            result = new String(buf, code);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return result;
-    }
-
-
-
     // 获取识别资源路径
     private String getResourcePath() {
         StringBuffer tempBuffer = new StringBuffer();
         // 识别通用资源
-        tempBuffer.append(ResourceUtil.generateResourcePath(this,
-                ResourceUtil.RESOURCE_TYPE.assets, "asr/common.jet"));
+        tempBuffer.append(ResourceUtil.generateResourcePath(this,ResourceUtil.RESOURCE_TYPE.assets, "asr/common.jet"));
         return tempBuffer.toString();
     }
 

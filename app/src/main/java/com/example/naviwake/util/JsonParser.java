@@ -1,4 +1,4 @@
-package com.example.naviwake;
+package com.example.naviwake.util;
 
 
 import org.json.JSONArray;

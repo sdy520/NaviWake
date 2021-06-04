@@ -1,4 +1,4 @@
-package com.example.naviwake;
+package com.example.naviwake.model;
 
 public class Pos {
     private String name;

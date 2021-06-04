@@ -1,7 +1,7 @@
 /**
  * 
  */
-package com.example.naviwake;
+package com.example.naviwake.activity;
 
 import android.Manifest;
 import android.annotation.TargetApi;
