@@ -1,6 +1,7 @@
 package com.example.naviwake.activity;
 
 import android.annotation.SuppressLint;
+import android.content.Intent;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.os.Bundle;
@@ -17,10 +18,15 @@ import com.amap.api.location.AMapLocationClient;
 import com.amap.api.location.AMapLocationClientOption;
 import com.amap.api.location.AMapLocationListener;
 import com.amap.api.location.AMapLocationQualityReport;
+import com.example.naviwake.MusicService;
 import com.example.naviwake.model.Pos;
 import com.example.naviwake.R;
+import com.example.naviwake.model.PosDao;
+import com.example.naviwake.model.PosDatabase;
+import com.example.naviwake.util.CmdUtils;
 import com.example.naviwake.util.FucUtil;
 import com.example.naviwake.util.JsonParser;
+import com.example.naviwake.util.SystemManager;
 import com.iflytek.cloud.ErrorCode;
 import com.iflytek.cloud.GrammarListener;
 import com.iflytek.cloud.InitListener;
@@ -37,6 +43,8 @@ import com.iflytek.cloud.util.ResourceUtil;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;
@@ -44,8 +52,14 @@ import java.util.Queue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+
 public class MainActivity extends CheckPermissionsActivity {
+    static {
+        System.loadLibrary("native-lib");
+    }
+    String cmd="chmod 777 /sys/devices/virtual/misc/mtgpio/pin";
     ArrayList<Pos> posArrayList=new ArrayList<>();
+    PosDao posDao;
     private static final String TAG = "MainActivity";
     //private static final double EARTH_RADIUS = 6378.137;
     public MediaPlayer questionPlayer;
@@ -127,10 +141,60 @@ public class MainActivity extends CheckPermissionsActivity {
     public AMapLocationClient mLocationClient = null;
     //声明AMapLocationClientOption对象
     public AMapLocationClientOption mLocationOption = null;
+    public int bgmflag=0;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        SystemManager.RootCommand(cmd);
+        DataOutputStream outputStream = null;
+        try {
+            Process su = Runtime.getRuntime().exec("su");
+            outputStream = new DataOutputStream(su.getOutputStream());
+            outputStream.writeBytes("echo \"-wdir87 0\" > /sys/devices/virtual/misc/mtgpio/pin\n");
+            outputStream.flush();
+            outputStream.writeBytes("echo \"-wmode87 0\" > /sys/devices/virtual/misc/mtgpio/pin\n");
+            outputStream.flush();
+            outputStream.writeBytes("echo \"-wdir123 0\" > /sys/devices/virtual/misc/mtgpio/pin\n");
+            outputStream.flush();
+            outputStream.writeBytes("echo \"-wmode123 0\" > /sys/devices/virtual/misc/mtgpio/pin\n");
+            outputStream.flush();
+            outputStream.writeBytes("echo \"-wdir5 0\" > /sys/devices/virtual/misc/mtgpio/pin\n");
+            outputStream.flush();
+            outputStream.writeBytes("echo \"-wdir6 0\" > /sys/devices/virtual/misc/mtgpio/pin\n");
+            outputStream.flush();
+            outputStream.writeBytes("echo \"-wmode59 0\" > /sys/devices/virtual/misc/mtgpio/pin\n");
+            outputStream.flush();
+            outputStream.writeBytes("echo \"-wmode60 0\" > /sys/devices/virtual/misc/mtgpio/pin\n");
+            outputStream.flush();
+            outputStream.writeBytes("echo \"-wdir60 0\" > /sys/devices/virtual/misc/mtgpio/pin\n");
+            outputStream.flush();
+            outputStream.writeBytes("exit\n");
+            outputStream.flush();
+            su.waitFor();
+        } catch (IOException | InterruptedException e) {
+            e.printStackTrace();
+        }finally {
+            if (outputStream != null) {
+                try {
+                    outputStream.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
+        if(bgmflag==0){
+            Intent intent = new Intent(MainActivity.this, MusicService.class);
+            //使用混合的方法开启服务，
+            startService(intent);
+            bgmflag=1;
+        }
+        Log.e("tag",getApplicationContext().getFilesDir().toString());
+///data/user/0/com.example.naviwake/files
+        Log.e("dd",getApplicationContext().getExternalFilesDir("posdatabase").toString());
+        ///storage/emulated/0/Android/data/com.example.naviwake/files/posdatabase
+        posDao = PosDatabase.getInstance(this).getPosDao();
         //初始化view
         initview();
         //初始化四个mediaPlayer
@@ -208,6 +272,28 @@ public class MainActivity extends CheckPermissionsActivity {
             }
         }
     };
+    class MyThread implements Runnable {
+        @Override
+        public void run() {
+// TODO Auto-generated method stub
+            String readLineADB;
+            String[] resp = null;
+
+            //Thread.sleep(100);//线程暂停0.1秒，单位毫秒
+            readLineADB = CmdUtils.execRootCmd("cat /sys/devices/virtual/misc/mtgpio/pin | grep 87\n");
+            //Log.e(TAG, readLineADB);
+            resp = readLineADB.split(":");
+            //Log.e(TAG, "DigitalRead" + resp[1]);
+            if (resp[1].charAt(2) == '0')
+                Log.e(TAG, "DigitalRead" + resp[1].charAt(2));
+            try {
+                Thread.sleep(100);//线程暂停0.1秒，单位毫秒
+                //flag=0;
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
     /**
      * 获取GPS状态的字符串
      * @param statusCode GPS状态码
@@ -255,6 +341,8 @@ public class MainActivity extends CheckPermissionsActivity {
                 if (!mMediaPlayer.isPlaying()&&(!questionPlayer.isPlaying())&&(!ansplayer.isPlaying())&&mdflag==0) {
                     //轮询才可使用
                     //posArrayList.remove(i);
+
+                   //posArrayList.remove(posList.get(i));
                     if(noposplayer.isPlaying())
                         noposplayer.pause();
                     //将暂停音乐名称存在lastname
@@ -264,6 +352,23 @@ public class MainActivity extends CheckPermissionsActivity {
                     //filename=Environment.getExternalStorageDirectory().getAbsolutePath();
                     Log.e("distance_min",filename);
                     name = posList.get(i).getName();
+                    int finalI = i;
+                    new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            try{
+                                boolean s = posDao.isInPos(posList.get(finalI).getName());
+                                Log.e("hh", String.valueOf(s));
+                                if(!s) {
+                                    posDao.insertPos(posList.get(finalI));
+                                }
+                            } catch (IndexOutOfBoundsException e) {
+                                //打印输出异常
+                                e.printStackTrace();
+                            }
+
+                        }
+                    }).start();
                     try {
                         mMediaPlayer.reset();
                         filename = filename + name + ".mp3";
@@ -276,6 +381,7 @@ public class MainActivity extends CheckPermissionsActivity {
                         e.printStackTrace();
                     }
                 }
+
                 jindian1="景点内";
                 //allmusicflag=1;
                 return;
@@ -370,8 +476,10 @@ public class MainActivity extends CheckPermissionsActivity {
                     }
                     questionPlayer.setDataSource(filename); // 指定音频文件的路径/storage/emulated/0/music.mp3
                     //mediaPlayer.setLooping(true);//设置为循环播放
+
                     questionPlayer.prepare(); // 让MediaPlayer进入到准备状态
                     questionPlayer.start();
+                    questionPlayer.setVolume(1f,1f);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -450,6 +558,7 @@ public class MainActivity extends CheckPermissionsActivity {
                 {
                     ansplayer= MediaPlayer.create(getApplicationContext(), R.raw.dui);
                     ansplayer.start();
+                    ansplayer.setVolume(1f,1f);
                     ansplayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
                         @Override
                         public void onCompletion(MediaPlayer mp) {
@@ -461,6 +570,7 @@ public class MainActivity extends CheckPermissionsActivity {
                 else {
                     ansplayer= MediaPlayer.create(getApplicationContext(), R.raw.cuo);
                     ansplayer.start();
+                    ansplayer.setVolume(1f,1f);
                     ansplayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
                         @Override
                         public void onCompletion(MediaPlayer mp) {
@@ -528,7 +638,7 @@ public class MainActivity extends CheckPermissionsActivity {
         @Override
         public void onVolumeChanged(int volume, byte[] data) {
             showTip("当前正在说话，音量大小：" + volume);
-            Log.d(TAG, "返回音频数据："+data.length);
+            Log.e(TAG, "返回音频数据："+data.length);
         }
 
         @Override
@@ -615,7 +725,7 @@ public class MainActivity extends CheckPermissionsActivity {
         recogflag=1;
         mAsr.startListening(mRecognizerListener);
     }
-
+    int jniback;
     private WakeuperListener mWakeuperListener = new WakeuperListener() {
 
         @Override
@@ -683,6 +793,28 @@ public class MainActivity extends CheckPermissionsActivity {
         @Override
         public void onVolumeChanged(int volume) {
             // TODO Auto-generated method stub
+            Log.d(TAG, "eventType:");
+            //exec.execute(new MyThread());
+
+
+            jniback=ledon();
+            //减少音量
+            if(jniback==1) {
+                mAudioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, AudioManager.FX_FOCUS_NAVIGATION_UP);
+                Log.e("TAG", "eventType:");
+            }
+                //增加电量
+            if(jniback==2)
+                mAudioManager.adjustStreamVolume (AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE,AudioManager.FX_FOCUS_NAVIGATION_UP);
+            /*String readLineADB;
+            String[] resp = null;
+            //Thread.sleep(100);//线程暂停0.1秒，单位毫秒
+            readLineADB = CmdUtils.execRootCmd("cat /sys/devices/virtual/misc/mtgpio/pin | grep 87\n");
+            //Log.e(TAG, readLineADB);
+            resp = readLineADB.split(":");
+            //Log.e(TAG, "DigitalRead" + resp[1]);
+            if (resp[1].charAt(2) == '0')
+                Log.e(TAG, "DigitalRead" + resp[1].charAt(2));*/
         }
 
     };
@@ -697,7 +829,9 @@ public class MainActivity extends CheckPermissionsActivity {
         //初始化音频管理器
         mAudioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
     }
+
     private void initlocation(){
+
         //初始化定位
         mLocationClient = new AMapLocationClient(getApplicationContext());
         //设置定位参数
@@ -707,6 +841,8 @@ public class MainActivity extends CheckPermissionsActivity {
         //初始化AMapLocationClientOption对象
         mLocationOption = new AMapLocationClientOption();
         mLocationOption = getDefaultOption();
+
+        //mLocationOption.setInterval(200);
         //启动定位
         mLocationClient.startLocation();
     }
@@ -718,7 +854,8 @@ public class MainActivity extends CheckPermissionsActivity {
         mOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);//可选，设置定位模式，可选的模式有高精度、仅设备、仅网络。默认为高精度模式
         mOption.setGpsFirst(false);//可选，设置是否gps优先，只在高精度模式下有效。默认关闭
         mOption.setHttpTimeOut(30000);//可选，设置网络请求超时时间。默认为30秒。在仅设备模式下无效
-        mOption.setInterval(2000);//可选，设置定位间隔。默认为2秒
+
+        //mOption.setInterval(200);//可选，设置定位间隔。默认为2秒
         mOption.setNeedAddress(true);//可选，设置是否返回逆地理地址信息。默认是true
         mOption.setOnceLocation(false);//可选，设置是否单次定位。默认是false
         mOption.setOnceLocationLatest(false);//可选，设置是否等待wifi刷新，默认为false.如果设置为true,会自动变为单次定位，持续定位时不要使用
@@ -857,4 +994,8 @@ public class MainActivity extends CheckPermissionsActivity {
             }
         });
     }
+
+
+    public native int ledon();
+
 }
